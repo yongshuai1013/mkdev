@@ -2,6 +2,11 @@
 /bin/
 mkdev
 mkdev.exe
+.editorconfig
+.gitattributes
+
+
+docs/
 
 # go
 *.test
