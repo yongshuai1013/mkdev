@@ -25,11 +25,11 @@ func newUninstallCmd() *cobra.Command {
 			}
 			rootCA := filepath.Join(home, "ca", "rootCA.pem")
 			if _, err := os.Stat(rootCA); err == nil {
-				Step(w, "removing CA from Keychain…")
+				Step(w, "removing CA from system trust store…")
 				if err := trust.Uninstall(rootCA); err != nil {
 					return Errorf(w, "trust uninstall: %v", err)
 				}
-				Success(w, "CA removed from keychain")
+				Success(w, "CA removed from trust store")
 			} else {
 				Step(w, "no CA file to untrust at "+rootCA)
 			}

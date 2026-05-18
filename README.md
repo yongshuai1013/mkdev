@@ -2,7 +2,7 @@
 
 **Local HTTPS for your dev servers.**
 
-> 🚧 **Pre-1.0 (macOS only).** Walking-skeleton release. API and on-disk layout may change.
+> 🚧 **Pre-1.0.** Walking-skeleton release. API and on-disk layout may change.
 
 [![build](https://img.shields.io/badge/build-pending-lightgrey)]() [![tests](https://img.shields.io/badge/tests-pending-lightgrey)]() [![license](https://img.shields.io/badge/license-MIT-blue)](./LICENSE)
 
@@ -10,7 +10,7 @@
 
 ## Why mkdev
 
-- **Real certs in your Keychain.** No browser warnings, no `--insecure`, no per-project root.
+- **Real certs in your system trust store.** No browser warnings, no `--insecure`, no per-project root.
 - **No per-app config.** One TOML, one bbolt file. Your app stays untouched.
 - **Single static Go binary.** No Node, no Docker, no nginx.conf to copy-paste.
 - **No background daemon yet.** Plan 2 will add that; today `serve` runs in the foreground.
@@ -18,7 +18,7 @@
 ## What it does
 
 ```
-mkdev install                    # generates CA, trusts in Keychain
+mkdev install                    # generates CA, trusts in system store
 mkdev add myapp localhost:3000   # routes https://myapp.local → localhost:3000
 mkdev serve                      # foreground TLS proxy
 curl https://myapp.local           # 200 from your local app
@@ -37,21 +37,25 @@ make build
 cp bin/mkdev ~/bin/        # or /usr/local/bin
 ```
 
-Requires **Go 1.25+** and macOS.
+Requires **Go 1.25+**.
 
 ## Platform support
 
-| Platform | Status      |
-|----------|-------------|
-| macOS    | Supported   |
-| Linux    | Roadmap     |
-| Windows  | Roadmap     |
+| Platform | Trust store                                                       | Elevation       |
+|----------|-------------------------------------------------------------------|-----------------|
+| macOS    | System Keychain (`security add-trusted-cert`)                     | `sudo` / `osascript` |
+| Linux    | `update-ca-trust` / `update-ca-certificates` / `trust extract-compat` | `sudo` / `pkexec` |
+| Windows  | `ROOT` system store via `crypt32.dll`                             | UAC (PowerShell `RunAs`) |
+
+Linux distros detected: Debian/Ubuntu (`/usr/local/share/ca-certificates`), RHEL/Fedora (`/etc/pki/ca-trust/source/anchors`), Arch (`/etc/ca-certificates/trust-source/anchors`), openSUSE (`/usr/share/pki/trust/anchors`).
+
+Firefox uses its own NSS store and is **not yet covered** — system Chrome/Safari/Edge/curl/wget all work.
 
 ## Commands
 
 | Command                  | Purpose                                                       |
 |--------------------------|---------------------------------------------------------------|
-| `install`                | Generate the root CA, write defaults, trust in Keychain.      |
+| `install`                | Generate the root CA, write defaults, trust in system store.  |
 | `add <name> <target>`    | Add route. Appends a `127.0.0.1` entry to `/etc/hosts`.       |
 | `remove <name>`          | Remove route and its `/etc/hosts` entry.                      |
 | `list`                   | List routes in the store.                                     |
@@ -98,7 +102,7 @@ Override the config directory with `--home <path>` or `MKDEV_HOME=...`.
 ## How it works
 
 - Generates an **ECDSA P-256** root CA at `~/.mkdev/ca/`. The private key is mode `0o400`.
-- Installs the CA in the macOS **System Keychain** via `security add-trusted-cert -d -r trustRoot -p ssl -p basic`.
+- Installs the CA in the OS-native trust store: macOS Keychain (`security`), Linux CA-bundle directory + `update-ca-*`, Windows `ROOT` store via `crypt32.dll`. Trust-store integration is adapted from [mkcert](https://github.com/FiloSottile/mkcert) (BSD-3) — see [`LICENSE-MKCERT`](./LICENSE-MKCERT).
 - On `add`, writes a route to a **bbolt** KV at `~/.mkdev/state.db` and appends a `127.0.0.1 <name>.<tld>` line to `/etc/hosts` via a `sudo`-invoked helper subcommand.
 - `serve` listens TLS on `0.0.0.0:<proxy_port>`, **mints leaf certs per SNI** on demand using the root CA, and reverse-proxies to the configured upstream.
 - The route table is re-read every 2 seconds, so `add` / `remove` take effect without restarting `serve`.
@@ -137,7 +141,7 @@ Planned, in order:
 
 - **Plan 2** — background daemon with gRPC IPC; `serve` becomes `up`/`down`.
 - **Plan 3-4** — TUI (route table, live logs, cert inspection).
-- **Plan 5** — Linux (NSS / `update-ca-certificates`) and Windows (CryptoAPI) trust-store support.
+- ~~**Plan 5** — Linux and Windows trust-store support.~~ ✅ Shipped.
 - **Plan 6** — signed releases via goreleaser, CI matrix, Homebrew tap.
 
 Nothing on the roadmap is implemented yet. If a feature isn't in the table above, it doesn't exist.

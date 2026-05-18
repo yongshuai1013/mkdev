@@ -64,21 +64,21 @@ func runInstall(cmd *cobra.Command, _ []string) error {
 
 	ok, err := trust.IsInstalled(ca.Cert)
 	if err != nil {
-		return Errorf(w, "check keychain: %v", err)
+		return Errorf(w, "check trust store: %v", err)
 	}
 	if !ok {
-		Step(w, "installing CA in macOS Keychain (you will be prompted)…")
+		Step(w, "installing CA in system trust store (you may be prompted for credentials)…")
 		if err := trust.Install(filepath.Join(caDir, "rootCA.pem")); err != nil {
 			return Errorf(w, "trust install: %v", err)
 		}
-		Success(w, "CA trusted in system keychain")
+		Success(w, "CA trusted in system trust store")
 	} else {
-		Step(w, "CA already trusted in keychain")
+		Step(w, "CA already trusted in system trust store")
 	}
 
 	if fps, err := trust.ListMkdevCerts(); err == nil && len(fps) > 1 {
-		Warn(w, fmt.Sprintf("multiple mkdev CAs found in keychain (%d); older entries may need manual cleanup", len(fps)))
-		slog.Warn("multiple CAs in keychain", "count", len(fps))
+		Warn(w, fmt.Sprintf("multiple mkdev CAs found in trust store (%d); older entries may need manual cleanup", len(fps)))
+		slog.Warn("multiple CAs in trust store", "count", len(fps))
 	}
 
 	fmt.Fprintln(w)
