@@ -1,15 +1,12 @@
 package tabs
 
 import (
-	"fmt"
-	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/venkatkrishna07/mkdev/internal/store"
-	"github.com/venkatkrishna07/mkdev/internal/tui/components"
 	"github.com/venkatkrishna07/mkdev/internal/tui/msg"
 	"github.com/venkatkrishna07/mkdev/internal/tui/styles"
 )
@@ -59,32 +56,24 @@ func tableStyles(th styles.Theme) table.Styles {
 }
 
 const (
-	domainsStatusW    = 12
-	domainsSourceW    = 12
-	domainsDetailW    = 34 // content width inside border+padding
-	domainsDetailMinW = 110
-	domainsGap        = 1
+	domainsStatusW = 12
+	domainsSourceW = 12
+	domainsAddedW  = 12
 )
-
-// detailOuterW = content + horizontal border (2).
-func detailOuterW() int { return domainsDetailW + 2 }
 
 func (d *Domains) tableWidth() int {
 	w := d.width
 	if w <= 0 {
 		w = 100
 	}
-	if w >= domainsDetailMinW {
-		return w - detailOuterW() - domainsGap
-	}
 	return w
 }
 
 func (d Domains) layoutCols(tableW int) []table.Column {
-	fixed := domainsStatusW + domainsSourceW
-	rem := tableW - fixed - 8 // padding budget across cols
-	if rem < 24 {
-		rem = 24
+	fixed := domainsStatusW + domainsSourceW + domainsAddedW
+	rem := tableW - fixed - 10 // padding budget across cols
+	if rem < 20 {
+		rem = 20
 	}
 	domW := rem / 2
 	tgtW := rem - domW
@@ -93,6 +82,7 @@ func (d Domains) layoutCols(tableW int) []table.Column {
 		{Title: "TARGET", Width: tgtW},
 		{Title: "STATUS", Width: domainsStatusW},
 		{Title: "SOURCE", Width: domainsSourceW},
+		{Title: "ADDED", Width: domainsAddedW},
 	}
 }
 
@@ -118,7 +108,7 @@ func (d Domains) Update(in tea.Msg) (Domains, tea.Cmd) {
 
 func (d *Domains) fitHeight() {
 	rows := max(len(d.routes), 1)
-	budget := max(d.height-8, 3)
+	budget := max(d.height-6, 3)
 	h := min(rows+1, budget)
 	d.table.SetHeight(h)
 }
@@ -135,6 +125,7 @@ func (d *Domains) refreshRows() {
 			r.Target,
 			d.statusCell(r),
 			r.Source,
+			r.AddedAt.Format("2006-01-02"),
 		}
 	}
 	d.table.SetRows(rows)
@@ -158,69 +149,11 @@ func (d Domains) statusCell(r store.Route) string {
 }
 
 func (d Domains) View() string {
-	w := d.width
-	if w <= 0 {
-		w = 100
-	}
 	if len(d.routes) == 0 {
 		hint := d.th.Dim.Render("no routes yet — press ") + d.th.FooterKey.Render("a") + d.th.Dim.Render(" to add")
 		return lipgloss.JoinVertical(lipgloss.Left, hint, d.table.View())
 	}
-	if w < domainsDetailMinW {
-		return d.table.View()
-	}
-	leftW := w - detailOuterW() - domainsGap
-	left := lipgloss.NewStyle().Width(leftW).Render(d.table.View())
-	right := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(d.th.Primary).
-		Padding(0, 1).
-		Width(domainsDetailW).
-		Render(d.detailPane(domainsDetailW - 2))
-	return lipgloss.JoinHorizontal(lipgloss.Top, left, " ", right)
-}
-
-func (d Domains) detailPane(innerW int) string {
-	r, ok := d.Selected()
-	if !ok {
-		return d.th.Dim.Render("select a route")
-	}
-	status := "enabled"
-	statusStyle := d.th.PillUp
-	if !r.Enabled {
-		status = "disabled"
-		statusStyle = d.th.PillOff
-	}
-	share := boolWord(r.Shared, "LAN", "local-only")
-	added := r.AddedAt.Format("2006-01-02")
-	sparkW := max(innerW-12, 6) // "RTT  " + " 999ms" overhead
-	rttRow := d.th.Dim.Render("RTT  ") + d.th.Dim.Render("—")
-	if d.rtt != nil {
-		xs := d.rtt(r.Domain)
-		if len(xs) > 0 {
-			last := xs[len(xs)-1].Milliseconds()
-			rttRow = d.th.Dim.Render("RTT  ") + components.SparklineDur(d.th, xs, sparkW) + " " + d.th.Title.Render(fmt.Sprintf("%dms", last))
-		}
-	}
-	lines := []string{
-		d.th.Title.Render(trunc(r.Domain, innerW)),
-		d.th.Dim.Render("→ ") + trunc(r.Target, innerW-2),
-		"",
-		d.th.Dim.Render("status ") + statusStyle.Render(status),
-		d.th.Dim.Render("share  ") + share,
-		d.th.Dim.Render("source ") + trunc(r.Source, innerW-7),
-		d.th.Dim.Render("added  ") + added,
-		"",
-		rttRow,
-	}
-	return strings.Join(lines, "\n")
-}
-
-func trunc(s string, n int) string {
-	if n <= 1 || len(s) <= n {
-		return s
-	}
-	return s[:n-1] + "…"
+	return d.table.View()
 }
 
 func (d Domains) Selected() (store.Route, bool) {
@@ -229,11 +162,4 @@ func (d Domains) Selected() (store.Route, bool) {
 	}
 	idx := min(max(d.table.Cursor(), 0), len(d.routes)-1)
 	return d.routes[idx], true
-}
-
-func boolWord(b bool, yes, no string) string {
-	if b {
-		return yes
-	}
-	return no
 }
