@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 )
 
 // VerifyBinPath rejects bin if it is not a regular file, is group/world
@@ -26,7 +27,7 @@ func VerifyBinPath(bin string) error {
 	if !info.Mode().IsRegular() {
 		return fmt.Errorf("safeexec: %s is not a regular file", resolved)
 	}
-	if info.Mode().Perm()&0o022 != 0 {
+	if runtime.GOOS != "windows" && info.Mode().Perm()&0o022 != 0 {
 		return fmt.Errorf("safeexec: %s is group/world writable; refusing to invoke under sudo", resolved)
 	}
 	return verifyOwner(resolved, info)
