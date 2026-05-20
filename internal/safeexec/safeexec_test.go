@@ -3,6 +3,7 @@ package safeexec_test
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -29,20 +30,27 @@ func TestVerifyBinPath(t *testing.T) {
 	notRegularPath := filepath.Join(dir, "asdir")
 	require.NoError(t, os.Mkdir(notRegularPath, 0o755))
 
+	// Unix-only perm-bit assertions; Windows uses ACLs.
+	unixOnly := runtime.GOOS != "windows"
+
 	cases := []struct {
 		name    string
 		path    string
 		wantErr bool
+		skip    bool
 	}{
 		{name: "regular owned by current uid", path: okPath, wantErr: false},
-		{name: "group writable rejected", path: groupWritablePath, wantErr: true},
-		{name: "world writable rejected", path: worldWritablePath, wantErr: true},
+		{name: "group writable rejected", path: groupWritablePath, wantErr: true, skip: !unixOnly},
+		{name: "world writable rejected", path: worldWritablePath, wantErr: true, skip: !unixOnly},
 		{name: "symlink follows to ok target", path: symlinkPath, wantErr: false},
 		{name: "directory rejected", path: notRegularPath, wantErr: true},
 		{name: "missing file rejected", path: filepath.Join(dir, "nope"), wantErr: true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			if tc.skip {
+				t.Skip("Unix-only perm bit check")
+			}
 			err := safeexec.VerifyBinPath(tc.path)
 			if tc.wantErr {
 				require.Error(t, err)
