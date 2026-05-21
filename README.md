@@ -24,7 +24,7 @@ mkdev serve                      # foreground TLS proxy
 curl https://myapp.local         # 200 from your local app
 ```
 
-<video src="https://github.com/venkatkrishna07/mkdev/raw/main/assets/mkdev-demo.mp4" controls muted autoplay loop width="100%"></video>
+https://github.com/user-attachments/assets/c539fff8-0d56-4d49-b033-00fef227ce92
 
 ## LAN sharing
 
