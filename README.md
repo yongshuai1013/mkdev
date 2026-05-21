@@ -1,10 +1,19 @@
 # mkdev
 
-**Local HTTPS for your dev servers.**
+**Real HTTPS for local dev — with a TUI and LAN sharing.**
 
 [![ci](https://github.com/venkatkrishna07/mkdev/actions/workflows/ci.yml/badge.svg)](https://github.com/venkatkrishna07/mkdev/actions/workflows/ci.yml) [![release](https://github.com/venkatkrishna07/mkdev/actions/workflows/release.yml/badge.svg)](https://github.com/venkatkrishna07/mkdev/actions/workflows/release.yml) [![license](https://img.shields.io/badge/license-MIT-blue)](./LICENSE)
 
 ---
+
+mkdev runs trusted HTTPS on `*.local`.  A single Go binary: cert authority + reverse proxy + `/etc/hosts` + mDNS broadcast + a full TUI.
+
+What makes it different:
+
+- **LAN sharing with real TLS.** Mark a route shared, hit `https://app.local` from your phone or any device on the same Wi-Fi.
+- **TUI, not just a CLI.** Live route table, request logs, cert inspection, health doctor. `mkdev` with no args drops you in.
+- **Hardened privilege boundary.** Owner, writability, and symlink checks on the sudo helper binary before any elevated call ([`internal/safeexec`](./internal/safeexec/safeexec.go)). No PATH-based shadowing, no group-writable shortcuts.
+- **Per-SNI cert minting.** Leaves are issued on demand and gated by an explicit `knownHost` allow-list. Not wildcard, not pre-baked.
 
 ## What it does
 
@@ -12,8 +21,26 @@
 mkdev install                    # generates CA, trusts in system store
 mkdev add myapp localhost:3000   # routes https://myapp.local → localhost:3000
 mkdev serve                      # foreground TLS proxy
-curl https://myapp.local           # 200 from your local app
+curl https://myapp.local         # 200 from your local app
 ```
+
+<video src="https://github.com/venkatkrishna07/mkdev/raw/main/assets/mkdev-demo.mp4" controls muted autoplay loop width="100%"></video>
+
+## LAN sharing
+
+mkdev's headline feature. Share a route to any device on the same Wi-Fi with real TLS — no warnings, no tunnel service.
+
+1. In the TUI Domains tab, select a route and press `s` to flip the **SHARE** column to `LAN`.
+2. The route is advertised via mDNS as `<name>.local` → this machine's LAN IP.
+3. On the phone / second laptop, browse to `https://<name>.local`. Once the device trusts the mkdev CA (one-time), no warnings.
+
+### Caveats
+
+- Only `.local` routes broadcast over mDNS. Other TLDs still proxy but aren't LAN-reachable by name.
+- Corporate / cloud Wi-Fi often blocks multicast. Home and office Wi-Fi work.
+- Toggling `s` is live — mDNS advertising and the LAN-side ACL update on the next request. No restart.
+- Non-shared routes 403 non-loopback requests as defense-in-depth.
+- Anyone on the LAN can hit your shared routes. Don't enable on untrusted Wi-Fi.
 
 ## Install
 
@@ -138,7 +165,7 @@ Override the config directory with `--home <path>` or `MKDEV_HOME=...`.
 - On `add`, writes a route to a **bbolt** KV at `~/.mkdev/state.db` and appends a `127.0.0.1 <name>.<tld>` line to `/etc/hosts` via a `sudo`-invoked helper subcommand.
 - `serve` listens TLS on `0.0.0.0:<proxy_port>`, **mints leaf certs per SNI** on demand using the root CA, and reverse-proxies to the configured upstream.
 - The route table is re-read every 2 seconds, so `add` / `remove` take effect without restarting `serve`.
-- The proxy binds `0.0.0.0`, but non-loopback requests are 403'd unless the matching route is marked **shared** — see [Share over LAN](#share-over-lan-experimental).
+- The proxy binds `0.0.0.0`, but non-loopback requests are 403'd unless the matching route is marked **shared** — see [LAN sharing](#lan-sharing--your-dev-server-on-your-phone).
 
 ## Security
 
@@ -158,11 +185,14 @@ mkdev uninstall --purge   # also delete ~/.mkdev/
 If something gets stuck, open **Keychain Access.app**, search for `mkdev`, and delete by hand. Then `grep mkdev /etc/hosts` and clean any leftovers.
 
 
-
 ## Roadmap
 
-- Background daemon with gRPC IPC; `serve` becomes `up`/`down`.
-- Firefox NSS store integration.
+Next:
+
+- Background daemon (`mkdev up` / `mkdev down`); UDS IPC; launchd / systemd / Task Scheduler.
+- Project config file (`.mkdev.yaml` checked into the repo).
+- Firefox / NSS trust store integration.
+- Per-path routing (`/api` → 8080, `/ws` → 9000 on a single domain).
 
 ## Troubleshooting
 
@@ -170,23 +200,6 @@ If something gets stuck, open **Keychain Access.app**, search for `mkdev`, and d
 - **`serve` fails with "permission denied" on :443.** Either run as root, or set `proxy_port = 8443` in `~/.mkdev/config.toml` and use `https://name.local:8443`.
 - **`mkdev add` keeps asking for sudo.** Sudo's per-session cache expires (default 5 min). Use the TUI Domains tab instead — it elevates via `osascript` (macOS GUI prompt) or `pkexec` (Linux Polkit).
 - **`/etc/hosts` already has an entry for that name.** `mkdev add` is idempotent and only appends when no `mkdev`-managed entry exists. Remove the prior entry by hand or pick a different name.
-
-## Share over LAN (experimental)
-
-Mark individual routes as shared:
-
-1. In the TUI Domains tab, select a route and press `s` to flip the **SHARE** column to `LAN`.
-2. The shared route is advertised via mDNS as `<name>.local` → this machine's LAN IP. Other devices on the same Wi-Fi can resolve it.
-
-Devices on the LAN must trust the mkdev CA to connect without warnings.
-
-### Caveats
-
-- Only `.local` routes are advertised. Other TLDs are still served by the proxy but unreachable by name from the LAN.
-- Multicast is often blocked on corporate / cloud networks. Home/office Wi-Fi works.
-- Toggling `s` is live — both mDNS advertising and LAN-side access change immediately on the next request. No restart needed.
-- The proxy always binds `0.0.0.0` so LAN clients can connect when a route is shared. Non-shared routes are 403'd for non-loopback requests as defense-in-depth.
-- Anyone on the LAN can hit your dev servers when a route is shared. Don't enable on untrusted Wi-Fi.
 
 ## Contributing
 
