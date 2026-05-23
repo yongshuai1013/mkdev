@@ -10,7 +10,7 @@ mkdev runs trusted HTTPS on `*.local`.  A single Go binary: cert authority + rev
 
 What makes it different:
 
-- **LAN sharing with real TLS.** Mark a route shared, hit `https://app.local` from your phone or any device on the same Wi-Fi.
+- **LAN sharing** Mark a route shared, hit `https://app.local` from your phone or any device on the same Wi-Fi.
 - **TUI, not just a CLI.** Live route table, request logs, cert inspection, health doctor. `mkdev` with no args drops you in.
 - **Hardened privilege boundary.** Owner, writability, and symlink checks on the sudo helper binary before any elevated call ([`internal/safeexec`](./internal/safeexec/safeexec.go)). No PATH-based shadowing, no group-writable shortcuts.
 - **Per-SNI cert minting.** Leaves are issued on demand and gated by an explicit `knownHost` allow-list. Not wildcard, not pre-baked.
@@ -24,7 +24,7 @@ mkdev serve                      # foreground TLS proxy
 curl https://myapp.local         # 200 from your local app
 ```
 
-![mkdev demo](assets/mkdev-demo.gif)
+![mkdev demo](assets/demo-add.gif)
 
 ## LAN sharing
 
